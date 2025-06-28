@@ -1,10 +1,5 @@
-// Import Firebase
-//import firebase from "firebase/app"
-//import "firebase/auth"
-//import "firebase/database"
-//import "firebase/storage"
+// Authentication module - No imports, using global variables,don't eclare the firebase variable again
 
-// Authentication module
 class AuthManager {
   constructor() {
     this.currentUser = null
@@ -86,7 +81,7 @@ class AuthManager {
       const user = result.user
 
       // Check if this is a new user
-      const userSnapshot = await (window.database.ref(`users/${user.uid}`) || { once : function (v) {return { exists: function() {return false;} } } } ).once("value")
+      const userSnapshot = await window.database.ref(`users/${user.uid}`).once("value")
 
       if (!userSnapshot.exists()) {
         // New user - save their data
@@ -140,8 +135,8 @@ class AuthManager {
       lastSeen: firebase.database.ServerValue.TIMESTAMP,
       isOnline: true,
     }
-    
-    await (window.database.ref(`users/${user.uid}`) || {set: function (v){return false;}}).set(userData)
+
+    await window.database.ref(`users/${user.uid}`).set(userData)
   }
 
   async saveUserMeta(userId, key, value) {
@@ -152,12 +147,12 @@ class AuthManager {
     })
 
     // Also save to Firebase
-    await (window.database.ref(`users/${userId}/${key}`) || {set: function(v){return false;}}).set(value)
+    await window.database.ref(`users/${userId}/${key}`).set(value)
   }
 
   async getUserMeta(userId, key) {
     try {
-      const snapshot = await (window.database.ref(`users/${userId}/${key}`) || {once: function () { return { val: function () { return null; } } } }) .once("value")
+      const snapshot = await window.database.ref(`users/${userId}/${key}`).once("value")
       return snapshot.val()
     } catch (error) {
       console.error("Error getting user meta:", error)
@@ -183,13 +178,25 @@ class AuthManager {
       await this.currentUser.updateProfile(updates)
 
       // Update Firebase Database
+      const userSnapshot = await window.database.ref(`users/${this.currentUser.uid}`).once("value")
+      const usersData = userSnapshot.exists() ? userSnapshot.val() : null
+      const isOnline = usersData && typeof usersData.isOnline != "undefined" ? usersData.isOnline : true
+
       const userUpdates = {
         name: name,
         status: status,
+        uid: this.currentUser.uid,
+        email: usersData && typeof usersData.email != "undefined" ? usersData.email : this.currentUser.email,
+        avatar:
+          usersData && typeof usersData.avatar != "undefined"
+            ? usersData.avatar
+            : this.currentUser.photoURL || "/placeholder.svg?height=100&width=100",
+        lastSeen: firebase.database.ServerValue.TIMESTAMP,
+        isOnline: isOnline,
       }
       if (avatarUrl) userUpdates.avatar = avatarUrl
 
-      await (window.database.ref(`users/${this.currentUser.uid}`) || { update: function(u){ return false;}}).update(userUpdates)
+      await window.database.ref(`users/${this.currentUser.uid}`).update(userUpdates)
 
       // Update IndexedDB
       await window.dbManager.put("users", {
@@ -229,22 +236,22 @@ class AuthManager {
 
   async setOnlineStatus(isOnline) {
     if (!this.currentUser) return
+
     try {
-      /*
+      const userSnapshot = await window.database.ref(`users/${this.currentUser.uid}`).once("value")
+      const usersData = userSnapshot.exists() ? userSnapshot.val() : null
       await window.database.ref(`users/${this.currentUser.uid}`).update({
-        isOnline: isOnline,
-        lastSeen: firebase.database.ServerValue.TIMESTAMP,
-      })
-      */
-      const userSnapshot = await (window.database.ref(`users/${this.currentUser.uid}`) || { once : function(){return { exists: function(){return false;}} } } ).once("value");
-      const usersData = userSnapshot.exists() ? userSnapshot.val() : null;
-      console.log(usersData);
-      await (window.database.ref(`users/${this.currentUser.uid}`) || { update: function(u){return false;}}) .update({
         uid: this.currentUser.uid,
-        name: usersData && typeof usersData.name != 'undefined' ? usersData.name : this.currentUser.displayName,
-        email: usersData && typeof usersData.email != 'undefined' ? usersData.email : this.currentUser.email,
-        status: usersData && typeof usersData.status != 'undefined' ? usersData.status : "Hey there! I am using WhatsApp Clone.",
-        avatar: usersData && typeof usersData.avatar != 'undefined' ? usersData.avatar : (this.currentUser.photoURL || "/placeholder.svg?height=100&width=100"),
+        name: usersData && typeof usersData.name != "undefined" ? usersData.name : this.currentUser.displayName,
+        email: usersData && typeof usersData.email != "undefined" ? usersData.email : this.currentUser.email,
+        status:
+          usersData && typeof usersData.status != "undefined"
+            ? usersData.status
+            : "Hey there! I am using WhatsApp Clone.",
+        avatar:
+          usersData && typeof usersData.avatar != "undefined"
+            ? usersData.avatar
+            : this.currentUser.photoURL || "/placeholder.svg?height=100&width=100",
         lastSeen: firebase.database.ServerValue.TIMESTAMP,
         isOnline: isOnline,
       })
@@ -261,10 +268,10 @@ class AuthManager {
     const userStatusRef = window.database.ref(`users/${user.uid}/isOnline`)
     const connectedRef = window.database.ref(".info/connected")
 
-    !connectedRef ?? connectedRef.on("value", (snapshot) => {
+    connectedRef.on("value", (snapshot) => {
       if (snapshot.val() === true) {
-        !userStatusRef ?? userStatusRef.onDisconnect().set(false)
-        !userStatusRef ?? userStatusRef.set(true)
+        userStatusRef.onDisconnect().set(false)
+        userStatusRef.set(true)
       }
     })
 
@@ -278,6 +285,7 @@ class AuthManager {
     if (window.groupsManager) window.groupsManager.init()
     if (window.feedsManager) window.feedsManager.init()
     if (window.callsManager) window.callsManager.init()
+    if (window.webRTCManager) window.webRTCManager.reinitialize()
 
     // Sync with IndexedDB
     if (window.dbManager) window.dbManager.syncWithFirebase()

@@ -321,6 +321,8 @@ body {
   margin-top: 120px;
   padding: 20px;
   min-height: calc(100vh - 120px);
+  max-height: calc(100vh - 120px);
+  overflow: auto;
 }
 
 .tab-pane {
@@ -894,6 +896,7 @@ body {
   border-radius: 50%;
   overflow: hidden;
   margin-right: 12px;
+  position: relative;
 }
 
 .friend-avatar img {
@@ -919,6 +922,7 @@ body {
 .friend-actions {
   display: flex;
   gap: 8px;
+  flex-wrap: wrap;
 }
 
 .friend-action-btn {
@@ -928,6 +932,9 @@ body {
   font-size: 12px;
   cursor: pointer;
   transition: all 0.3s ease;
+  display: flex;
+  align-items: center;
+  gap: 4px;
 }
 
 .accept-btn {
@@ -942,6 +949,16 @@ body {
 
 .message-btn {
   background: #075e54;
+  color: white;
+}
+
+.call-btn {
+  background: #2196f3;
+  color: white;
+}
+
+.video-btn {
+  background: #ff9800;
   color: white;
 }
 
@@ -1377,6 +1394,16 @@ body {
     width: 50px;
     height: 50px;
   }
+
+  .friend-actions {
+    flex-direction: column;
+    gap: 5px;
+  }
+
+  .friend-action-btn {
+    font-size: 11px;
+    padding: 4px 8px;
+  }
 }
 
 @media (max-width: 480px) {
@@ -1485,4 +1512,544 @@ body {
 
 .slide-in-right {
   animation: slideInRight 0.3s ease;
+}
+
+/* Add styles for incoming call screen and call status indicators */
+
+/* Incoming Call Screen */
+.incoming-call-container {
+  height: 100vh;
+  background: linear-gradient(135deg, #075e54 0%, #128c7e 100%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: space-between;
+  padding: 80px 20px 60px;
+  color: white;
+  position: relative;
+  overflow: hidden;
+}
+
+.incoming-call-info {
+  text-align: center;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+}
+
+.incoming-call-avatar {
+  width: 150px;
+  height: 150px;
+  border-radius: 50%;
+  overflow: hidden;
+  margin-bottom: 30px;
+  border: 4px solid rgba(255, 255, 255, 0.3);
+  position: relative;
+}
+
+.incoming-call-avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.incoming-call-info h2 {
+  font-size: 28px;
+  font-weight: 600;
+  margin-bottom: 10px;
+}
+
+.incoming-call-info p {
+  font-size: 18px;
+  opacity: 0.9;
+  margin-bottom: 30px;
+}
+
+/* Call Status Indicator with Pulse Animation */
+.call-status-indicator {
+  position: relative;
+  width: 60px;
+  height: 60px;
+  margin: 20px auto;
+}
+
+.pulse-ring {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 20px;
+  height: 20px;
+  border: 2px solid rgba(255, 255, 255, 0.8);
+  border-radius: 50%;
+  animation: pulse 2s infinite;
+}
+
+.pulse-ring:nth-child(2) {
+  animation-delay: 0.5s;
+}
+
+.pulse-ring:nth-child(3) {
+  animation-delay: 1s;
+}
+
+@keyframes pulse {
+  0% {
+    transform: translate(-50%, -50%) scale(0.5);
+    opacity: 1;
+  }
+  100% {
+    transform: translate(-50%, -50%) scale(2.5);
+    opacity: 0;
+  }
+}
+
+/* Incoming Call Controls */
+.incoming-call-controls {
+  display: flex;
+  gap: 80px;
+  align-items: center;
+  justify-content: center;
+}
+
+.reject-call-btn {
+  background: #dc3545 !important;
+  width: 70px;
+  height: 70px;
+  border-radius: 50%;
+  border: none;
+  color: white;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.3s ease;
+  box-shadow: 0 4px 20px rgba(220, 53, 69, 0.4);
+}
+
+.accept-call-btn {
+  background: #25d366 !important;
+  width: 70px;
+  height: 70px;
+  border-radius: 50%;
+  border: none;
+  color: white;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.3s ease;
+  box-shadow: 0 4px 20px rgba(37, 211, 102, 0.4);
+}
+
+.reject-call-btn:hover {
+  transform: scale(1.1);
+  box-shadow: 0 6px 25px rgba(220, 53, 69, 0.6);
+}
+
+.accept-call-btn:hover {
+  transform: scale(1.1);
+  box-shadow: 0 6px 25px rgba(37, 211, 102, 0.6);
+}
+
+/* Call Screen Enhancements */
+.call-container {
+  position: relative;
+}
+
+.call-info {
+  position: relative;
+  z-index: 2;
+}
+
+/* Muted and Video Off States */
+.call-control-btn.muted {
+  background: #dc3545 !important;
+}
+
+.call-control-btn.video-off {
+  background: #dc3545 !important;
+}
+
+/* Call Status Animations */
+.call-status-calling {
+  animation: fadeInOut 2s infinite;
+}
+
+.call-status-ringing {
+  animation: pulse 1.5s infinite;
+}
+
+@keyframes fadeInOut {
+  0%,
+  100% {
+    opacity: 0.7;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+/* Video Call Enhancements */
+.video-container {
+  position: relative;
+}
+
+.video-container.active {
+  display: block;
+}
+
+#remote-video {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  background: #000;
+}
+
+#local-video {
+  position: absolute;
+  top: 20px;
+  right: 20px;
+  width: 120px;
+  height: 160px;
+  border-radius: 12px;
+  z-index: 10;
+  border: 2px solid rgba(255, 255, 255, 0.3);
+  object-fit: cover;
+}
+
+/* Responsive Design for Calls */
+@media (max-width: 768px) {
+  .incoming-call-avatar {
+    width: 120px;
+    height: 120px;
+  }
+
+  .incoming-call-info h2 {
+    font-size: 24px;
+  }
+
+  .incoming-call-info p {
+    font-size: 16px;
+  }
+
+  .incoming-call-controls {
+    gap: 60px;
+  }
+
+  .reject-call-btn,
+  .accept-call-btn {
+    width: 60px;
+    height: 60px;
+  }
+
+  #local-video {
+    width: 100px;
+    height: 130px;
+    top: 15px;
+    right: 15px;
+  }
+}
+
+@media (max-width: 480px) {
+  .incoming-call-container {
+    padding: 60px 15px 40px;
+  }
+
+  .incoming-call-avatar {
+    width: 100px;
+    height: 100px;
+  }
+
+  .incoming-call-info h2 {
+    font-size: 20px;
+  }
+
+  .incoming-call-controls {
+    gap: 40px;
+  }
+
+  .reject-call-btn,
+  .accept-call-btn {
+    width: 55px;
+    height: 55px;
+  }
+}
+
+/* Call Permission Dialog */
+.permission-dialog {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  background: white;
+  padding: 30px;
+  border-radius: 12px;
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.3);
+  z-index: 3000;
+  text-align: center;
+  max-width: 400px;
+  width: 90%;
+}
+
+.permission-dialog h3 {
+  margin-bottom: 15px;
+  color: #333;
+}
+
+.permission-dialog p {
+  margin-bottom: 20px;
+  color: #666;
+  line-height: 1.5;
+}
+
+.permission-dialog .btn-group {
+  display: flex;
+  gap: 10px;
+  justify-content: center;
+}
+
+/* Large message button for friends */
+.message-btn-large {
+  padding: 10px 20px !important;
+  font-size: 14px !important;
+  background: #075e54 !important;
+  color: white !important;
+  border-radius: 6px !important;
+}
+
+.message-btn-large:hover {
+  background: #064139 !important;
+}
+
+/* Call action buttons in call history */
+.call-actions {
+  display: flex;
+  align-items: center;
+}
+
+.call-action-btn {
+  background: none;
+  border: none;
+  color: #075e54;
+  padding: 8px;
+  border-radius: 50%;
+  cursor: pointer;
+  transition: background-color 0.3s ease;
+}
+
+.call-action-btn:hover {
+  background: rgba(7, 94, 84, 0.1);
+}
+
+/* Group member selection */
+.member-search {
+  margin-bottom: 15px;
+}
+
+.member-search .search-input {
+  width: 100%;
+  padding: 10px;
+  border: 1px solid #e9ecef;
+  border-radius: 6px;
+  font-size: 14px;
+}
+
+.members-container {
+  max-height: 200px;
+  overflow-y: auto;
+}
+
+.member-item {
+  display: flex;
+  align-items: center;
+  padding: 10px 0;
+  border-bottom: 1px solid #f0f2f5;
+}
+
+.member-item:last-child {
+  border-bottom: none;
+}
+
+.member-checkbox {
+  margin-right: 10px;
+}
+
+.member-checkbox input[type="checkbox"] {
+  width: 16px;
+  height: 16px;
+}
+
+.member-avatar {
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  overflow: hidden;
+  margin-right: 10px;
+}
+
+.member-avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.member-info {
+  flex: 1;
+}
+
+.member-name {
+  font-weight: 500;
+  font-size: 14px;
+}
+
+/* Chat list animations */
+.chat-item {
+  transition: all 0.3s ease;
+}
+
+.chat-item.slide-down {
+  animation: slideDown 0.3s ease;
+}
+
+@keyframes slideDown {
+  from {
+    transform: translateY(-100%);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+/* Logout confirmation */
+.logout-confirmation {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  background: white;
+  padding: 30px;
+  border-radius: 12px;
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.3);
+  z-index: 3000;
+  text-align: center;
+  max-width: 400px;
+  width: 90%;
+}
+
+.logout-confirmation h3 {
+  margin-bottom: 15px;
+  color: #333;
+}
+
+.logout-confirmation .btn-group {
+  display: flex;
+  gap: 10px;
+  justify-content: center;
+  margin-top: 20px;
+}
+
+.logout-confirmation .btn-danger {
+  background: #dc3545;
+  color: white;
+  padding: 10px 20px;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.logout-confirmation .btn-secondary {
+  background: #6c757d;
+  color: white;
+  padding: 10px 20px;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+/* Message Status Icons */
+.message-meta {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 5px;
+  margin-top: 5px;
+}
+
+.message-status {
+  display: inline-flex;
+  align-items: center;
+}
+
+.message-status.seen svg {
+  fill: #4fc3f7;
+}
+
+.message-status.delivered svg {
+  fill: #999;
+}
+
+.message-status.sent svg {
+  fill: #999;
+}
+
+.message-seen-time {
+  font-size: 10px;
+  color: #666;
+  margin-top: 5px;
+  text-align: right;
+  transition: all 0.3s ease;
+}
+
+.message-seen-time.hidden {
+  display: none;
+}
+
+/* Group Message Styles */
+.message-sender {
+  font-size: 12px;
+  font-weight: 600;
+  color: #075e54;
+  margin-bottom: 3px;
+  margin-left: 8px;
+}
+
+.message.sent .message-sender {
+  display: none;
+}
+
+/* Feed Like Button */
+.feed-action-btn.like-btn.liked {
+  color: #ffa000;
+}
+
+.feed-action-btn.like-btn.liked svg {
+  fill: #ffa000;
+}
+
+/* Group Item Styling */
+.group-item {
+  cursor: pointer;
+}
+
+.group-item:hover {
+  background: #f8f9fa;
+}
+
+/* Message Bubble Click Effect */
+.message-bubble {
+  cursor: pointer;
+  transition: background-color 0.2s ease;
+}
+
+.message-bubble:hover {
+  background-color: rgba(0, 0, 0, 0.05);
+}
+
+.message.sent .message-bubble:hover {
+  background-color: rgba(0, 0, 0, 0.05);
 }

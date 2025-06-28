@@ -1,4 +1,5 @@
-// UI management module
+// UI management module - No imports, using global variables,don't eclare the firebase variable again
+
 class UI {
   constructor() {
     this.currentScreen = "loading-screen"
@@ -42,6 +43,8 @@ class UI {
     window.$(document).on("click", "#send-friend-request-btn", () => this.sendFriendRequest())
     window.$(document).on("click", ".accept-btn", (e) => this.acceptFriendRequest(e))
     window.$(document).on("click", ".decline-btn", (e) => this.declineFriendRequest(e))
+    window.$(document).on("click", ".message-friend-btn", (e) => this.messageFriend(e))
+    window.$(document).on("click", ".call-friend-btn", (e) => this.callFriend(e))
 
     // Chat handlers
     window.$(document).on("click", ".chat-item", (e) => this.openChat(e))
@@ -75,10 +78,19 @@ class UI {
     // Search handler
     window.$(document).on("click", "#search-btn", () => this.toggleSearch())
     window.$(document).on("input", ".search-input", (e) => this.handleSearch(e))
+
+    // Call action handlers for call history
+    window.$(document).on("click", ".call-action-btn", (e) => this.makeCallFromHistory(e))
+
+    // Message bubble click handler
+    window.$(document).on("click", ".message-bubble", (e) => this.toggleMessageSeenTime(e))
+
+    // Group chat handlers
+    window.$(document).on("click", ".group-item", (e) => this.openGroupChat(e))
   }
 
   hideLoadingScreen() {
-    setTimeout(() => {
+    window.setTimeout(() => {
       window.$("#loading-screen").addClass("hidden")
       if (window.currentUser) {
         this.showScreen("main-screen")
@@ -195,7 +207,7 @@ class UI {
   }
 
   closeModal(e) {
-    const modalId = window.$(e.target).data("modal")
+    const modalId = window.$(e.target).data("modal") || window.$(e.target).closest("[data-modal]").data("modal")
     if (modalId) {
       window.$(`#${modalId}`).addClass("hidden")
       window.$("#modal-overlay").addClass("hidden")
@@ -261,6 +273,154 @@ class UI {
     }
   }
 
+  // Friends methods
+  openFriendsModal() {
+    this.openModal("friends-modal")
+    // Load friends data when modal opens
+    if (window.friendsManager) {
+      window.friendsManager.loadFriends()
+      window.friendsManager.loadFriendRequests()
+    }
+  }
+
+  sendFriendRequest() {
+    const email = window.$("#friend-email-input").val().trim()
+    if (email && window.utils.isValidEmail(email)) {
+      window.friendsManager.sendFriendRequest(email)
+      window.$("#friend-email-input").val("")
+    } else {
+      window.utils.showToast("Please enter a valid email address", "error")
+    }
+  }
+
+  acceptFriendRequest(e) {
+    const requestId = window.$(e.target).data("request-id")
+    const fromUserId = window.$(e.target).data("from-user-id")
+    if (requestId && fromUserId) {
+      window.friendsManager.acceptFriendRequest(requestId, fromUserId)
+    }
+  }
+
+  declineFriendRequest(e) {
+    const requestId = window.$(e.target).data("request-id")
+    if (requestId) {
+      window.friendsManager.declineFriendRequest(requestId)
+    }
+  }
+
+  messageFriend(e) {
+    const userId = window.$(e.target).data("user-id")
+    if (userId) {
+      this.closeModal({ target: { dataset: { modal: "friends-modal" } } })
+      this.openChat(userId)
+    }
+  }
+
+  callFriend(e) {
+    const userId = window.$(e.target).data("user-id")
+    const callType = window.$(e.target).data("call-type") || "voice"
+    if (userId) {
+      this.closeModal({ target: { dataset: { modal: "friends-modal" } } })
+      if (callType === "video") {
+        window.callsManager.makeCall(userId, true)
+      } else {
+        window.callsManager.makeCall(userId, false)
+      }
+    }
+  }
+
+  switchFriendsTab(e) {
+    const tab = window.$(e.target).data("tab")
+    window.$(".friends-tab").removeClass("active")
+    window.$(e.target).addClass("active")
+
+    window.$(".friends-content").removeClass("active")
+    window.$(`#${tab}`).addClass("active")
+  }
+
+  updateFriendsList(friends) {
+    const friendsContainer = window.$("#friends-list-container")
+    friendsContainer.empty()
+
+    if (friends.length === 0) {
+      friendsContainer.html(`
+      <div class="empty-state">
+        <svg width="60" height="60" viewBox="0 0 24 24" fill="currentColor">
+          <path d="M16 4c0-1.11.89-2 2-2s2 .89 2 2-.89 2-2 2-2-.89-2-2zm4 18v-6h2.5l-2.54-7.63A3.01 3.01 0 0 0 16.5 6.5c-.83 0-1.58.34-2.12.89L12 10.5 9.62 7.39C9.08 6.84 8.33 6.5 7.5 6.5c-1.31 0-2.42.83-2.83 2L2.5 16H5v6h14z"/>
+        </svg>
+        <h3>No friends yet</h3>
+        <p>Add friends to start chatting</p>
+      </div>
+    `)
+      return
+    }
+
+    friends.forEach((friend) => {
+      const friendItem = window.$(`
+      <div class="friend-item">
+        <div class="friend-avatar">
+          <img src="${friend.avatar || "/placeholder.svg?height=40&width=40"}" alt="${friend.name}">
+          ${friend.isOnline ? '<div class="online-indicator"></div>' : ""}
+        </div>
+        <div class="friend-info">
+          <div class="friend-name">${friend.name}</div>
+          <div class="friend-status">${friend.isOnline ? "Online" : `Last seen ${window.utils.formatTime(friend.lastSeen)}`}</div>
+        </div>
+        <div class="friend-actions">
+          <button class="friend-action-btn message-btn-large message-friend-btn" data-user-id="${friend.user_id}">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
+              <path d="M20 2H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h4v3c0 .6.4 1 1 1h.5c.2 0 .4-.1.5-.2L14.5 18H20c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2z"/>
+            </svg>
+            Message
+          </button>
+        </div>
+      </div>
+    `)
+      friendsContainer.append(friendItem)
+    })
+  }
+
+  updateFriendRequests(requests) {
+    const requestsContainer = window.$("#friend-requests-container")
+    requestsContainer.empty()
+
+    if (requests.length === 0) {
+      requestsContainer.html(`
+        <div class="empty-state">
+          <svg width="60" height="60" viewBox="0 0 24 24" fill="currentColor">
+            <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/>
+          </svg>
+          <h3>No friend requests</h3>
+          <p>You have no pending friend requests</p>
+        </div>
+      `)
+      return
+    }
+
+    requests.forEach((request) => {
+      const requestItem = window.$(`
+        <div class="friend-item">
+          <div class="friend-avatar">
+            <img src="${request.avatar || "/placeholder.svg?height=40&width=40"}" alt="${request.name}">
+          </div>
+          <div class="friend-info">
+            <div class="friend-name">${request.name}</div>
+            <div class="friend-status">Wants to be your friend</div>
+          </div>
+          <div class="friend-actions">
+            <button class="friend-action-btn accept-btn" data-request-id="${request.requestId}" data-from-user-id="${request.user_id}">
+              Accept
+            </button>
+            <button class="friend-action-btn decline-btn" data-request-id="${request.requestId}">
+              Decline
+            </button>
+          </div>
+        </div>
+      `)
+      requestsContainer.append(requestItem)
+    })
+  }
+
   // Chat methods
   async loadChatList() {
     try {
@@ -307,6 +467,56 @@ class UI {
       `)
       chatListContainer.append(chatItem)
     })
+  }
+
+  async updateChatListItem(message) {
+    try {
+      const otherUserId = message.chat_from === window.currentUser.uid ? message.chat_to : message.chat_from
+
+      // Get user data
+      const userSnapshot = await window.database.ref(`users/${otherUserId}`).once("value")
+      const userData = userSnapshot.val()
+
+      if (!userData) return
+
+      const chatListContainer = window.$("#chat-list")
+      const existingChatItem = chatListContainer.find(`[data-user-id="${otherUserId}"]`)
+
+      // Get unread count
+      const unreadCount = await window.messagingManager.getUnreadCount(otherUserId)
+
+      const chatItemHtml = `
+        <div class="chat-item" data-user-id="${otherUserId}">
+          <div class="chat-avatar">
+            <img src="${userData.avatar || "/placeholder.svg?height=50&width=50"}" alt="${userData.name}">
+            ${userData.isOnline ? '<div class="online-indicator"></div>' : ""}
+          </div>
+          <div class="chat-info">
+            <div class="chat-name">${userData.name}</div>
+            <div class="chat-last-message">${message.chat_msg}</div>
+          </div>
+          <div class="chat-meta">
+            <div class="chat-time">${window.utils.formatTime(message.chat_created)}</div>
+            ${unreadCount > 0 ? `<div class="chat-unread">${unreadCount}</div>` : ""}
+          </div>
+        </div>
+      `
+
+      if (existingChatItem.length) {
+        // Update existing item
+        const newChatItem = window.$(chatItemHtml)
+        existingChatItem.fadeOut(200, function () {
+          window.$(this).replaceWith(newChatItem)
+          newChatItem.hide().prependTo(chatListContainer).slideDown(300)
+        })
+      } else {
+        // Create new item
+        const newChatItem = window.$(chatItemHtml)
+        newChatItem.hide().prependTo(chatListContainer).slideDown(300)
+      }
+    } catch (error) {
+      console.error("Error updating chat list item:", error)
+    }
   }
 
   openChat(e) {
@@ -359,14 +569,42 @@ class UI {
     const messagesContainer = window.$("#chat-messages")
     const isOwn = message.chat_from === window.currentUser.uid
 
+    // Determine message status icon
+    let statusIcon = ""
+    if (isOwn) {
+      if (message.chat_seen === 2) {
+        statusIcon = `<span class="message-status seen" title="Seen">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="#4fc3f7">
+          <path d="M18 7l-1.41-1.41-6.34 6.34 1.41 1.41L18 7zm4.24-1.41L11.66 16.17 7.48 12l-1.41 1.41L11.66 19l12-12-1.42-1.41zM.41 13.41L6 19l1.41-1.41L1.83 12 .41 13.41z"/>
+        </svg>
+      </span>`
+      } else if (message.chat_seen === 1) {
+        statusIcon = `<span class="message-status delivered" title="Delivered">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="#999">
+          <path d="M18 7l-1.41-1.41-6.34 6.34 1.41 1.41L18 7zm4.24-1.41L11.66 16.17 7.48 12l-1.41 1.41L11.66 19l12-12-1.42-1.41z"/>
+        </svg>
+      </span>`
+      } else {
+        statusIcon = `<span class="message-status sent" title="Sent">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="#999">
+          <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/>
+        </svg>
+      </span>`
+      }
+    }
+
     const messageElement = window.$(`
-      <div class="message ${isOwn ? "sent" : "received"}">
-        <div class="message-bubble">
-          <div class="message-text">${window.utils.sanitizeHtml(message.chat_msg)}</div>
-          <div class="message-time">${window.utils.formatTime(message.chat_created)}</div>
+    <div class="message ${isOwn ? "sent" : "received"}" data-message-id="${message.chat_id}">
+      <div class="message-bubble" data-message-id="${message.chat_id}">
+        <div class="message-text">${window.utils.sanitizeHtml(message.chat_msg)}</div>
+        <div class="message-meta">
+          <span class="message-time">${window.utils.formatTime(message.chat_created)}</span>
+          ${statusIcon}
         </div>
+        ${message.chat_seen_time ? `<div class="message-seen-time hidden">${window.utils.formatDate(message.chat_seen_time)}</div>` : ""}
       </div>
-    `)
+    </div>
+  `)
 
     messagesContainer.append(messageElement)
     messagesContainer.scrollTop(messagesContainer[0].scrollHeight)
@@ -376,7 +614,11 @@ class UI {
     const messageText = window.$("#message-input").val().trim()
     if (messageText && window.currentChat) {
       try {
-        await window.messagingManager.sendMessage(window.currentChat.userId, messageText)
+        if (window.currentChat.isGroup) {
+          await window.groupsManager.sendGroupMessage(window.currentChat.groupId, messageText)
+        } else {
+          await window.messagingManager.sendMessage(window.currentChat.userId, messageText)
+        }
         window.$("#message-input").val("")
       } catch (error) {
         console.error("Error sending message:", error)
@@ -413,12 +655,118 @@ class UI {
     }
   }
 
+  toggleMessageSeenTime(e) {
+    const messageId = window.$(e.currentTarget).data("message-id")
+    const seenTimeElement = window.$(e.currentTarget).find(".message-seen-time")
+
+    if (seenTimeElement.length) {
+      seenTimeElement.toggleClass("hidden")
+    }
+
+    // Mark message as seen if it's from another user and not already seen
+    const message = window.$(e.currentTarget).closest(".message")
+    if (message.hasClass("received") && window.currentChat) {
+      window.messagingManager.markMessageAsSeen(messageId)
+
+      // Update status icon to seen
+      const statusIcon = message.find(".message-status")
+      if (statusIcon.length && !statusIcon.hasClass("seen")) {
+        statusIcon.removeClass("delivered sent").addClass("seen")
+        statusIcon.attr("title", "Seen")
+        statusIcon.html(`
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="#4fc3f7">
+          <path d="M18 7l-1.41-1.41-6.34 6.34 1.41 1.41L18 7zm4.24-1.41L11.66 16.17 7.48 12l-1.41 1.41L11.66 19l12-12-1.42-1.41zM.41 13.41L6 19l1.41-1.41L1.83 12 .41 13.41z"/>
+        </svg>
+      `)
+      }
+    }
+  }
+
+  showNewChatOptions() {
+    this.openFriendsModal()
+  }
+
+  // Call methods
+  makeVoiceCall() {
+    if (window.currentChat) {
+      window.callsManager.makeCall(window.currentChat.userId, false)
+    }
+  }
+
+  makeVideoCall() {
+    if (window.currentChat) {
+      window.callsManager.makeCall(window.currentChat.userId, true)
+    }
+  }
+
+  endCall() {
+    window.webRTCManager.endCall()
+  }
+
+  toggleMute() {
+    const isMuted = window.webRTCManager.toggleMute()
+    window.$("#mute-btn").toggleClass("muted", isMuted)
+
+    // Update button appearance
+    if (isMuted) {
+      window.$("#mute-btn").css("background", "#dc3545")
+    } else {
+      window.$("#mute-btn").css("background", "rgba(255, 255, 255, 0.2)")
+    }
+  }
+
+  toggleSpeaker() {
+    // Implementation for speaker toggle
+    window.$("#speaker-btn").toggleClass("active")
+  }
+
+  toggleVideo() {
+    const isVideoOff = window.webRTCManager.toggleVideo()
+    window.$("#call-video-btn").toggleClass("video-off", isVideoOff)
+
+    // Update button appearance
+    if (isVideoOff) {
+      window.$("#call-video-btn").css("background", "#dc3545")
+    } else {
+      window.$("#call-video-btn").css("background", "rgba(255, 255, 255, 0.2)")
+    }
+  }
+
+  showCallScreen(userId, status, isVideo, userData = null) {
+    this.showScreen("call-screen")
+
+    if (userData) {
+      window.$("#call-contact-name").text(userData.name || "Unknown")
+      window.$("#call-contact-avatar").attr("src", userData.avatar || "/placeholder.svg?height=120&width=120")
+    } else {
+      // Fallback to get user data
+      window.database.ref(`users/${userId}`).once("value", (snapshot) => {
+        const user = snapshot.val()
+        if (user) {
+          window.$("#call-contact-name").text(user.name || "Unknown")
+          window.$("#call-contact-avatar").attr("src", user.avatar || "/placeholder.svg?height=120&width=120")
+        }
+      })
+    }
+
+    window.$("#call-status").text(status)
+
+    if (isVideo) {
+      window.$("#video-container").removeClass("hidden")
+    } else {
+      window.$("#video-container").addClass("hidden")
+    }
+  }
+
   // Additional methods for other features...
   async logout() {
-    try {
-      await window.authManager.signOut()
-    } catch (error) {
-      console.error("Logout error:", error)
+    const confirmed = confirm("Are you sure you want to logout?")
+    if (confirmed) {
+      try {
+        await window.authManager.signOut()
+      } catch (error) {
+        console.error("Logout error:", error)
+      }
     }
   }
 
@@ -429,39 +777,35 @@ class UI {
 
     if (groups.length === 0) {
       groupListContainer.html(`
-        <div class="empty-state">
-          <svg width="80" height="80" viewBox="0 0 24 24" fill="currentColor">
-            <path d="M16 4c0-1.11.89-2 2-2s2 .89 2 2-.89 2-2 2-2-.89-2-2zm4 18v-6h2.5l-2.54-7.63A3.01 3.01 0 0 0 16.5 6.5c-.83 0-1.58.34-2.12.89L12 10.5 9.62 7.39C9.08 6.84 8.33 6.5 7.5 6.5c-1.31 0-2.42.83-2.83 2L2.5 16H5v6h14z"/>
-          </svg>
-          <h3>No groups yet</h3>
-          <p>Create or join a group to get started</p>
-        </div>
-      `)
+      <div class="empty-state">
+        <svg width="80" height="80" viewBox="0 0 24 24" fill="currentColor">
+          <path d="M16 4c0-1.11.89-2 2-2s2 .89 2 2-.89 2-2 2-2-.89-2-2zm4 18v-6h2.5l-2.54-7.63A3.01 3.01 0 0 0 16.5 6.5c-.83 0-1.58.34-2.12.89L12 10.5 9.62 7.39C9.08 6.84 8.33 6.5 7.5 6.5c-1.31 0-2.42.83-2.83 2L2.5 16H5v6h14z"/>
+        </svg>
+        <h3>No groups yet</h3>
+        <p>Create or join a group to get started</p>
+      </div>
+    `)
       return
     }
 
     groups.forEach((group) => {
       const groupItem = window.$(`
-        <div class="group-item" data-group-id="${group.group_id}">
-          <div class="group-avatar">
-            ${group.group_name.charAt(0).toUpperCase()}
-          </div>
-          <div class="group-info">
-            <div class="group-name">${group.group_name}</div>
-            <div class="group-members">${group.member_count} members</div>
-          </div>
+      <div class="group-item chat-item" data-group-id="${group.group_id}">
+        <div class="group-avatar chat-avatar">
+          <img src="${group.group_avatar}" alt="${group.group_name}">
         </div>
-      `)
+        <div class="group-info chat-info">
+          <div class="group-name chat-name">${group.group_name}</div>
+          <div class="group-last-message chat-last-message">${group.last_message}</div>
+        </div>
+        <div class="group-meta chat-meta">
+          <div class="group-time chat-time">${window.utils.formatTime(group.last_message_time)}</div>
+          ${group.unread_count > 0 ? `<div class="group-unread chat-unread">${group.unread_count}</div>` : ""}
+        </div>
+      </div>
+    `)
       groupListContainer.append(groupItem)
     })
-  }
-
-  updateFriendsList(friends) {
-    /* Implementation for friends list */
-  }
-
-  updateFriendRequests(requests) {
-    /* Implementation for friend requests */
   }
 
   updateFeedsList(feeds) {
@@ -498,7 +842,7 @@ class UI {
             ${feed.feed_image ? `<img src="${feed.feed_image}" alt="Feed image" class="feed-image">` : ""}
           </div>
           <div class="feed-actions">
-            <button class="feed-action-btn" data-action="like" data-feed-id="${feed.feed_id}">
+            <button class="feed-action-btn like-btn ${feed.isLiked ? "liked" : ""}" data-action="like" data-feed-id="${feed.feed_id}">
               <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
                 <path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/>
               </svg>
@@ -526,92 +870,204 @@ class UI {
         <div class="empty-state">
           <svg width="80" height="80" viewBox="0 0 24 24" fill="currentColor">
             <path d="M20.01 15.38c-1.23 0-2.42-.2-3.53-.56-.35-.12-.74-.03-1.01.24l-1.57 1.97c-2.83-1.35-5.48-3.9-6.89-6.83l1.95-1.66c.27-.28.35-.67.24-1.02-.37-1.11-.56-2.3-.56-3.53 0-.54-.45-.99-.99-.99H4.19C3.65 3 3 3.24 3 3.99 3 13.28 10.73 21 20.01 21c.71 0 .99-.63.99-1.18v-3.45c0-.54-.45-.99-.99-.99z"/>
-          </svg>
-          <h3>No calls yet</h3>
-          <p>Make your first call</p>
-        </div>
-      `)
+        </svg>
+        <h3>No calls yet</h3>
+        <p>Make your first call</p>
+      </div>
+    `)
       return
     }
 
     calls.forEach((call) => {
+      const callTypeIcon =
+        call.call_type === "video"
+          ? `<svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+        <path d="M17 10.5V7c0-.55-.45-1-1-1H4c-.55 0-1 .45-1 1v10c0 .55.45 1 1 1h12c.55 0 1-.45 1-1v-3.5l4 4v-11l-4 4z"/>
+      </svg>`
+          : `<svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+        <path d="M20.01 15.38c-1.23 0-2.42-.2-3.53-.56-.35-.12-.74-.03-1.01.24l-1.57 1.97c-2.83-1.35-5.48-3.9-6.89-6.83l1.95-1.66c.27-.28.35-.67.24-1.02-.37-1.11-.56-2.3-.56-3.53 0-.54-.45-.99-.99-.99H4.19C3.65 3 3 3.24 3 3.99 3 13.28 10.73 21 20.01 21c.71 0 .99-.63.99-1.18v-3.45c0-.54-.45-.99-.99-.99z"/>
+      </svg>`
+
       const callItem = window.$(`
-        <div class="call-item" data-contact-id="${call.contact_id}">
-          <div class="call-type-icon call-${call.call_direction}">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
-              <path d="M20.01 15.38c-1.23 0-2.42-.2-3.53-.56-.35-.12-.74-.03-1.01.24l-1.57 1.97c-2.83-1.35-5.48-3.9-6.89-6.83l1.95-1.66c.27-.28.35-.67.24-1.02-.37-1.11-.56-2.3-.56-3.53 0-.54-.45-.99-.99-.99H4.19C3.65 3 3 3.24 3 3.99 3 13.28 10.73 21 20.01 21c.71 0 .99-.63.99-1.18v-3.45c0-.54-.45-.99-.99-.99z"/>
-            </svg>
-          </div>
-          <div class="call-details">
-            <div class="call-contact">${call.contact_name}</div>
-            <div class="call-time">${window.utils.formatTime(call.call_created)}</div>
-          </div>
-          <div class="call-duration">
-            ${call.call_duration > 0 ? window.callsManager.formatCallDuration(call.call_duration) : "Missed"}
-          </div>
+      <div class="call-item" data-contact-id="${call.contact_id}">
+        <div class="call-type-icon call-${call.call_direction}">
+          ${callTypeIcon}
         </div>
-      `)
+        <div class="call-details">
+          <div class="call-contact">${call.contact_name}</div>
+          <div class="call-time">${window.utils.formatTime(call.call_created)}</div>
+        </div>
+        <div class="call-actions">
+          <button class="call-action-btn" data-user-id="${call.contact_id}" data-call-type="${call.call_type}">
+            ${callTypeIcon}
+          </button>
+        </div>
+      </div>
+    `)
       callListContainer.append(callItem)
     })
   }
 
-  openFriendsModal() {
-    this.openModal("friends-modal")
-  }
+  makeCallFromHistory(e) {
+    const userId = window.$(e.target).closest(".call-action-btn").data("user-id")
+    const callType = window.$(e.target).closest(".call-action-btn").data("call-type")
 
-  sendFriendRequest() {
-    const email = window.$("#friend-email-input").val().trim()
-    if (email && window.utils.isValidEmail(email)) {
-      window.friendsManager.sendFriendRequest(email)
-      window.$("#friend-email-input").val("")
-    } else {
-      window.utils.showToast("Please enter a valid email address", "error")
+    if (userId) {
+      if (callType === "video") {
+        window.webRTCManager.startCall(userId, true)
+      } else {
+        window.webRTCManager.startCall(userId, false)
+      }
     }
   }
 
-  acceptFriendRequest(e) {
-    const requestId = window.$(e.target).data("request-id")
-    const fromUserId = window.$(e.target).data("from-user-id")
-    if (requestId && fromUserId) {
-      window.friendsManager.acceptFriendRequest(requestId, fromUserId)
+  openGroupChat(e) {
+    const groupId = window.$(e.currentTarget).data("group-id")
+    if (groupId) {
+      window.currentChat = { groupId, isGroup: true }
+      this.loadGroupChatMessages(groupId)
+      this.showScreen("chat-screen")
     }
   }
 
-  declineFriendRequest(e) {
-    const requestId = window.$(e.target).data("request-id")
-    if (requestId) {
-      window.friendsManager.declineFriendRequest(requestId)
+  async loadGroupChatMessages(groupId) {
+    try {
+      // Get group info
+      const groupSnapshot = await window.database.ref(`groups/${groupId}`).once("value")
+      const groupData = groupSnapshot.val()
+
+      if (groupData) {
+        window.$("#chat-contact-name").text(groupData.group_name)
+        window.$("#chat-contact-avatar").attr("src", groupData.group_avatar || "/placeholder.svg?height=40&width=40")
+        window.$("#chat-contact-status").text(`${await window.groupsManager.getGroupMemberCount(groupId)} members`)
+      }
+
+      // Load messages
+      const messages = await window.groupsManager.getGroupMessages(groupId)
+      this.displayGroupMessages(messages)
+
+      // Listen for new messages
+      window.groupsManager.listenForGroupMessages(groupId)
+
+      // Mark group as read
+      window.groupsManager.markGroupAsRead(groupId)
+    } catch (error) {
+      console.error("Error loading group chat messages:", error)
     }
   }
 
-  switchFriendsTab(e) {
-    const tab = window.$(e.target).data("tab")
-    window.$(".friends-tab").removeClass("active")
-    window.$(e.target).addClass("active")
+  displayGroupMessages(messages) {
+    const messagesContainer = window.$("#chat-messages")
+    messagesContainer.empty()
 
-    window.$(".friends-content").removeClass("active")
-    window.$(`#${tab}`).addClass("active")
+    messages.forEach((message) => {
+      this.addGroupMessageToChat(message)
+    })
+
+    // Scroll to bottom
+    messagesContainer.scrollTop(messagesContainer[0].scrollHeight)
   }
 
-  showNewChatOptions() {
-    this.openFriendsModal()
+  addGroupMessageToChat(message) {
+    const messagesContainer = window.$("#chat-messages")
+    const isOwn = message.gm_from === window.currentUser.uid
+
+    const messageElement = window.$(`
+    <div class="message ${isOwn ? "sent" : "received"}" data-message-id="${message.gm_id}">
+      ${!isOwn ? `<div class="message-sender">${message.user_name}</div>` : ""}
+      <div class="message-bubble" data-message-id="${message.gm_id}">
+        <div class="message-text">${window.utils.sanitizeHtml(message.gm_message)}</div>
+        <div class="message-meta">
+          <span class="message-time">${window.utils.formatTime(message.gm_created)}</span>
+        </div>
+      </div>
+    </div>
+  `)
+
+    messagesContainer.append(messageElement)
+    messagesContainer.scrollTop(messagesContainer[0].scrollHeight)
   }
 
   openNewGroupModal() {
     this.openModal("new-group-modal")
+    this.loadFriendsForGroupSelection()
+  }
+
+  async loadFriendsForGroupSelection() {
+    if (!window.friendsManager) return
+
+    const friends = await window.friendsManager.loadFriends()
+    const membersList = window.$("#group-members-list")
+    membersList.empty()
+
+    if (friends.length === 0) {
+      membersList.html("<p>No friends available to add to group</p>")
+      return
+    }
+
+    const searchInput = window.$(`
+      <div class="member-search">
+        <input type="text" id="member-search-input" placeholder="Search friends..." class="search-input">
+      </div>
+    `)
+    membersList.append(searchInput)
+
+    const membersContainer = window.$('<div class="members-container"></div>')
+    membersList.append(membersContainer)
+
+    friends.forEach((friend) => {
+      const memberItem = window.$(`
+        <div class="member-item">
+          <div class="member-checkbox">
+            <input type="checkbox" id="member-${friend.user_id}" value="${friend.user_id}">
+          </div>
+          <div class="member-avatar">
+            <img src="${friend.avatar || "/placeholder.svg?height=30&width=30"}" alt="${friend.name}">
+          </div>
+          <div class="member-info">
+            <div class="member-name">${friend.name}</div>
+          </div>
+        </div>
+      `)
+      membersContainer.append(memberItem)
+    })
+
+    // Add search functionality
+    window.$("#member-search-input").on("input", function () {
+      const searchTerm = window.$(this).val().toLowerCase()
+      membersContainer.find(".member-item").each(function () {
+        const memberName = window.$(this).find(".member-name").text().toLowerCase()
+        if (memberName.includes(searchTerm)) {
+          window.$(this).show()
+        } else {
+          window.$(this).hide()
+        }
+      })
+    })
   }
 
   createGroup() {
     const groupName = window.$("#group-name-input").val().trim()
-    if (groupName) {
-      // Get selected members (implementation needed)
-      const memberIds = []
-      window.groupsManager.createGroup(groupName, memberIds)
-      window.$("#group-name-input").val("")
-      this.closeModal({ target: { dataset: { modal: "new-group-modal" } } })
-    } else {
+    const selectedMembers = []
+
+    window.$("#group-members-list input[type='checkbox']:checked").each(function () {
+      selectedMembers.push(window.$(this).val())
+    })
+
+    if (!groupName) {
       window.utils.showToast("Please enter a group name", "error")
+      return
     }
+
+    if (selectedMembers.length === 0) {
+      window.utils.showToast("Please select at least one member", "error")
+      return
+    }
+
+    window.groupsManager.createGroup(groupName, selectedMembers)
+    window.$("#group-name-input").val("")
+    window.$("#group-members-list input[type='checkbox']").prop("checked", false)
+    this.closeModal({ target: { dataset: { modal: "new-group-modal" } } })
   }
 
   openNewFeedModal() {
@@ -662,49 +1118,6 @@ class UI {
     }
   }
 
-  makeVoiceCall() {
-    if (window.currentChat) {
-      window.callsManager.makeCall(window.currentChat.userId, false)
-    }
-  }
-
-  makeVideoCall() {
-    if (window.currentChat) {
-      window.callsManager.makeCall(window.currentChat.userId, true)
-    }
-  }
-
-  endCall() {
-    window.callsManager.endCall()
-  }
-
-  toggleMute() {
-    const isMuted = window.webRTCManager.toggleMute()
-    window.$("#mute-btn").toggleClass("muted", isMuted)
-  }
-
-  toggleSpeaker() {
-    // Implementation for speaker toggle
-    window.$("#speaker-btn").toggleClass("active")
-  }
-
-  toggleVideo() {
-    const isVideoOff = window.webRTCManager.toggleVideo()
-    window.$("#call-video-btn").toggleClass("video-off", isVideoOff)
-  }
-
-  showCallScreen(userId, status, isVideo) {
-    this.showScreen("call-screen")
-    window.$("#call-contact-name").text("Contact")
-    window.$("#call-status").text(status)
-
-    if (isVideo) {
-      window.$("#video-container").removeClass("hidden")
-    } else {
-      window.$("#video-container").addClass("hidden")
-    }
-  }
-
   toggleSearch() {
     window.$(".search-container").toggleClass("active")
   }
@@ -730,6 +1143,19 @@ class UI {
   loadFeedsList() {
     if (window.feedsManager) {
       window.feedsManager.loadFeeds()
+    }
+  }
+
+  makeCallFromHistory(e) {
+    const userId = window.$(e.target).closest(".call-action-btn").data("user-id")
+    const callType = window.$(e.target).closest(".call-action-btn").data("call-type")
+
+    if (userId) {
+      if (callType === "video") {
+        window.webRTCManager.startCall(userId, true)
+      } else {
+        window.webRTCManager.startCall(userId, false)
+      }
     }
   }
 }

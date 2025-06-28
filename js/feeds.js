@@ -1,7 +1,4 @@
-// Feeds management module
-//import firebase from "firebase/app"
-//import "firebase/database"
-//import "firebase/storage"
+// Feeds management module - No imports, using global variables,don't eclare the firebase variable again
 
 class FeedsManager {
   constructor() {
@@ -160,115 +157,6 @@ class FeedsManager {
     }
   }
 
-  async checkIfLiked(feedId) {
-    try {
-      const likeSnapshot = await window.database.ref(`feed_likes/${feedId}/${window.currentUser.uid}`).once("value")
-      return likeSnapshot.exists()
-    } catch (error) {
-      console.error("Error checking like status:", error)
-      return false
-    }
-  }
-
-  async addComment(feedId, commentText) {
-    try {
-      const commentData = {
-        comment_user: window.currentUser.uid,
-        comment_text: commentText,
-        comment_created: firebase.database.ServerValue.TIMESTAMP,
-      }
-
-      const commentRef = window.database.ref(`feed_comments/${feedId}`).push()
-      await commentRef.set(commentData)
-
-      // Update comment count
-      await window.database.ref(`feeds/${feedId}/feed_comments`).transaction((comments) => (comments || 0) + 1)
-
-      window.utils.showToast("Comment added!", "success")
-      return commentRef.key
-    } catch (error) {
-      console.error("Error adding comment:", error)
-      window.utils.showToast("Failed to add comment", "error")
-      return null
-    }
-  }
-
-  async getComments(feedId) {
-    try {
-      const commentsSnapshot = await window.database
-        .ref(`feed_comments/${feedId}`)
-        .orderByChild("comment_created")
-        .once("value")
-
-      const comments = []
-      const commentPromises = []
-
-      commentsSnapshot.forEach((childSnapshot) => {
-        const comment = childSnapshot.val()
-        const commentId = childSnapshot.key
-
-        commentPromises.push(
-          window.database
-            .ref(`users/${comment.comment_user}`)
-            .once("value")
-            .then((userSnapshot) => {
-              const userData = userSnapshot.val()
-              if (userData) {
-                comments.push({
-                  comment_id: commentId,
-                  comment_user: comment.comment_user,
-                  comment_text: comment.comment_text,
-                  comment_created: comment.comment_created,
-                  user_name: userData.name,
-                  user_avatar: userData.avatar,
-                })
-              }
-            }),
-        )
-      })
-
-      await Promise.all(commentPromises)
-
-      // Sort by creation time
-      comments.sort((a, b) => a.comment_created - b.comment_created)
-
-      return comments
-    } catch (error) {
-      console.error("Error getting comments:", error)
-      return []
-    }
-  }
-
-  async deleteFeed(feedId) {
-    try {
-      const feedSnapshot = await window.database.ref(`feeds/${feedId}`).once("value")
-      const feed = feedSnapshot.val()
-
-      if (feed && feed.feed_user === window.currentUser.uid) {
-        // Delete feed
-        await window.database.ref(`feeds/${feedId}`).remove()
-
-        // Delete associated likes and comments
-        await window.database.ref(`feed_likes/${feedId}`).remove()
-        await window.database.ref(`feed_comments/${feedId}`).remove()
-
-        // Delete from IndexedDB
-        await window.dbManager.delete("feeds", feedId)
-
-        window.utils.showToast("Feed deleted successfully!", "success")
-        this.loadFeeds()
-        return true
-      } else {
-        window.utils.showToast("You can only delete your own feeds", "error")
-        return false
-      }
-    } catch (error) {
-      console.error("Error deleting feed:", error)
-      window.utils.showToast("Failed to delete feed", "error")
-      return false
-    }
-  }
-
   listenForFeedUpdates() {
     // Listen for new feeds
     window.database.ref("feeds").on("child_added", (snapshot) => {
@@ -285,10 +173,6 @@ class FeedsManager {
     window.database.ref("feeds").on("child_changed", () => {
       this.loadFeeds()
     })
-  }
-
-  getFeedById(feedId) {
-    return this.feeds.find((feed) => feed.feed_id === feedId)
   }
 }
 

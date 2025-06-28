@@ -1,10 +1,5 @@
-// Import Firebase
-//import firebase from "firebase/app"
-//import "firebase/auth"
-//import "firebase/database"
-//import "firebase/storage"
-
-// Firebase Configuration
+// Firebase Configuration - No imports, using global firebase from CDN
+const firebase = window.firebase // Declare the firebase variable
 const firebaseConfig = {
   apiKey: "AIzaSyDrocO5ZKzfU4JITWrHE7eRqebXJjURx9k",
   authDomain: "whatsapp-chat-2a1d9.firebaseapp.com",
@@ -21,7 +16,34 @@ const APP_CONFIG = {
   version: "1.0.0",
   vapidKey: "BDqa6pCGO8sWcrtoj1OL1_aAWJ3-UdVJESYX9qvGx88EmxvH5pbcfvdsV4om4N9ms09IBduMZRUWW42-wZzXlqs",
   rtcConfiguration: {
-    iceServers: [{ urls: "stun:stun.l.google.com:19302" }, { urls: "stun:stun1.l.google.com:19302" }],
+    iceServers: [
+      // Google STUN servers (most reliable)
+      { urls: "stun:stun.l.google.com:19302" },
+      { urls: "stun:stun1.l.google.com:19302" },
+      { urls: "stun:stun2.l.google.com:19302" },
+      { urls: "stun:stun3.l.google.com:19302" },
+      { urls: "stun:stun4.l.google.com:19302" },
+
+      // Cloudflare STUN servers
+      { urls: "stun:stun.cloudflare.com:3478" },
+
+      // Mozilla STUN servers
+      { urls: "stun:stun.services.mozilla.com" },
+
+      // Additional reliable STUN servers
+      { urls: "stun:stun.ekiga.net" },
+      { urls: "stun:stun.ideasip.com" },
+      { urls: "stun:stun.rixtelecom.se" },
+      { urls: "stun:stun.schlund.de" },
+      { urls: "stun:stun.stunprotocol.org:3478" },
+      { urls: "stun:stun.voiparound.com" },
+      { urls: "stun:stun.voipbuster.com" },
+
+      // Backup STUN servers
+      { urls: "stun:openrelay.metered.ca:80" },
+      { urls: "stun:relay.metered.ca:80" },
+    ],
+    iceCandidatePoolSize: 10,
   },
 }
 
@@ -107,7 +129,7 @@ window.utils = {
     let inThrottle
     return function () {
       const args = arguments
-      
+
       if (!inThrottle) {
         func.apply(this, args)
         inThrottle = true
@@ -142,20 +164,16 @@ window.utils = {
   },
 }
 
+// Initialize Firebase
+firebase.initializeApp(firebaseConfig)
 
-//document.addEventListener("DOMContentLoaded", () => {
-  // Initialize Firebase
-  firebase.initializeApp(firebaseConfig)
+// Firebase services
+const auth = firebase.auth()
+const database = firebase.database()
+const storage = firebase.storage()
 
-  // Firebase services
-  const auth = firebase.auth()
-  const database = firebase.database()
-  const storage = firebase.storage()
-  
-  // Export for use in other modules
-  window.APP_CONFIG = APP_CONFIG
-  window.auth = auth
-  window.database = database
-  window.storage = storage
-
-//});
+// Export for use in other modules
+window.APP_CONFIG = APP_CONFIG
+window.auth = auth
+window.database = database
+window.storage = storage

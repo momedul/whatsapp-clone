@@ -1,4 +1,5 @@
-// IndexedDB for local storage and offline support
+// IndexedDB for local storage and offline support - No imports, using global variables,don't eclare the firebase variable again
+
 class IndexedDBManager {
   constructor() {
     this.dbName = "WhatsAppCloneDB"

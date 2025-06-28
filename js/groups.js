@@ -1,11 +1,10 @@
-// Groups management module
-//import firebase from "firebase/app"
-//import "firebase/database"
+// Groups management module - Enhanced for full chat functionality
 
 class GroupsManager {
   constructor() {
     this.currentGroup = null
     this.groupListeners = new Map()
+    this.groupMessageListeners = new Map()
   }
 
   init() {
@@ -22,6 +21,7 @@ class GroupsManager {
         group_status: "active",
         group_created: firebase.database.ServerValue.TIMESTAMP,
         group_admin: window.currentUser.uid,
+        group_avatar: `/placeholder.svg?height=50&width=50&text=${groupName.charAt(0).toUpperCase()}`,
       }
 
       // Create group in Firebase
@@ -34,16 +34,18 @@ class GroupsManager {
           gm_group: groupRef.key,
           gm_user: memberId,
           gm_status: "active",
+          gm_role: "member",
           gm_created: firebase.database.ServerValue.TIMESTAMP,
         }),
       )
 
-      // Add creator as member
+      // Add creator as admin
       membersPromises.push(
         window.database.ref("group_members").push({
           gm_group: groupRef.key,
           gm_user: window.currentUser.uid,
           gm_status: "active",
+          gm_role: "admin",
           gm_created: firebase.database.ServerValue.TIMESTAMP,
         }),
       )
@@ -56,6 +58,7 @@ class GroupsManager {
         group_name: groupName,
         group_status: "active",
         group_created: Date.now(),
+        group_admin: window.currentUser.uid,
       })
 
       window.utils.showToast("Group created successfully!", "success")
@@ -65,47 +68,6 @@ class GroupsManager {
       console.error("Error creating group:", error)
       window.utils.showToast("Failed to create group", "error")
       throw error
-    }
-  }
-
-  async joinGroup(groupId) {
-    try {
-      await window.database.ref("group_members").push({
-        gm_group: groupId,
-        gm_user: window.currentUser.uid,
-        gm_status: "active",
-        gm_created: firebase.database.ServerValue.TIMESTAMP,
-      })
-
-      window.utils.showToast("Joined group successfully!", "success")
-      this.loadGroups()
-    } catch (error) {
-      console.error("Error joining group:", error)
-      window.utils.showToast("Failed to join group", "error")
-    }
-  }
-
-  async leaveGroup(groupId) {
-    try {
-      // Find and remove membership
-      const membershipSnapshot = await window.database
-        .ref("group_members")
-        .orderByChild("gm_group")
-        .equalTo(groupId)
-        .once("value")
-
-      membershipSnapshot.forEach((childSnapshot) => {
-        const membership = childSnapshot.val()
-        if (membership.gm_user === window.currentUser.uid) {
-          window.database.ref(`group_members/${childSnapshot.key}`).remove()
-        }
-      })
-
-      window.utils.showToast("Left group successfully!", "success")
-      this.loadGroups()
-    } catch (error) {
-      console.error("Error leaving group:", error)
-      window.utils.showToast("Failed to leave group", "error")
     }
   }
 
@@ -137,18 +99,30 @@ class GroupsManager {
             // Get member count
             const memberCount = await this.getGroupMemberCount(groupId)
 
+            // Get last message
+            const lastMessage = await this.getGroupLastMessage(groupId)
+
             groups.push({
               group_id: groupId,
               group_name: groupData.group_name,
               group_status: groupData.group_status,
+              group_avatar:
+                groupData.group_avatar ||
+                `/placeholder.svg?height=50&width=50&text=${groupData.group_name.charAt(0).toUpperCase()}`,
               member_count: memberCount,
               group_created: groupData.group_created,
+              last_message: lastMessage?.message || "No messages yet",
+              last_message_time: lastMessage?.timestamp || groupData.group_created,
+              unread_count: await this.getGroupUnreadCount(groupId),
             })
           }
         } catch (error) {
           console.error("Error loading group details:", error)
         }
       }
+
+      // Sort by last message time
+      groups.sort((a, b) => b.last_message_time - a.last_message_time)
 
       // Update UI
       if (window.UI && window.UI.updateGroupsList) {
@@ -185,44 +159,153 @@ class GroupsManager {
     }
   }
 
-  async getGroupMembers(groupId) {
+  async getGroupLastMessage(groupId) {
     try {
-      const membersSnapshot = await window.database
-        .ref("group_members")
+      const messagesSnapshot = await window.database
+        .ref("group_messages")
+        .orderByChild("gm_group")
+        .equalTo(groupId)
+        .limitToLast(1)
+        .once("value")
+
+      let lastMessage = null
+      messagesSnapshot.forEach((childSnapshot) => {
+        const message = childSnapshot.val()
+        lastMessage = {
+          message: message.gm_message,
+          timestamp: message.gm_created,
+          from: message.gm_from,
+        }
+      })
+
+      return lastMessage
+    } catch (error) {
+      console.error("Error getting last message:", error)
+      return null
+    }
+  }
+
+  async getGroupUnreadCount(groupId) {
+    try {
+      // Get user's last seen timestamp for this group
+      const lastSeenSnapshot = await window.database
+        .ref(`group_last_seen/${groupId}/${window.currentUser.uid}`)
+        .once("value")
+
+      const lastSeen = lastSeenSnapshot.val() || 0
+
+      // Count messages after last seen
+      const messagesSnapshot = await window.database
+        .ref("group_messages")
         .orderByChild("gm_group")
         .equalTo(groupId)
         .once("value")
 
-      const members = []
-      const memberPromises = []
-
-      membersSnapshot.forEach((childSnapshot) => {
-        const membership = childSnapshot.val()
-        if (membership.gm_status === "active") {
-          memberPromises.push(
-            window.database
-              .ref(`users/${membership.gm_user}`)
-              .once("value")
-              .then((userSnapshot) => {
-                const userData = userSnapshot.val()
-                if (userData) {
-                  members.push({
-                    user_id: membership.gm_user,
-                    name: userData.name,
-                    avatar: userData.avatar,
-                    isOnline: userData.isOnline,
-                  })
-                }
-              }),
-          )
+      let unreadCount = 0
+      messagesSnapshot.forEach((childSnapshot) => {
+        const message = childSnapshot.val()
+        if (message.gm_created > lastSeen && message.gm_from !== window.currentUser.uid) {
+          unreadCount++
         }
       })
 
-      await Promise.all(memberPromises)
-      return members
+      return unreadCount
     } catch (error) {
-      console.error("Error getting group members:", error)
+      console.error("Error getting unread count:", error)
+      return 0
+    }
+  }
+
+  async sendGroupMessage(groupId, messageText, messageType = "text") {
+    try {
+      const message = {
+        gm_group: groupId,
+        gm_from: window.currentUser.uid,
+        gm_message: messageText,
+        gm_type: messageType,
+        gm_created: firebase.database.ServerValue.TIMESTAMP,
+      }
+
+      // Send to Firebase
+      const messageRef = window.database.ref("group_messages").push()
+      await messageRef.set(message)
+
+      // Save to IndexedDB
+      await window.dbManager.put("group_messages", {
+        ...message,
+        gm_id: messageRef.key,
+        gm_created: Date.now(),
+      })
+
+      return true
+    } catch (error) {
+      console.error("Error sending group message:", error)
+      window.utils.showToast("Failed to send message", "error")
+      return false
+    }
+  }
+
+  async getGroupMessages(groupId, limit = 50) {
+    try {
+      const messagesSnapshot = await window.database
+        .ref("group_messages")
+        .orderByChild("gm_group")
+        .equalTo(groupId)
+        .limitToLast(limit)
+        .once("value")
+
+      const messages = []
+      const userPromises = []
+
+      messagesSnapshot.forEach((childSnapshot) => {
+        const message = childSnapshot.val()
+        messages.push({
+          ...message,
+          gm_id: childSnapshot.key,
+        })
+
+        // Get user info for each message
+        if (!userPromises.find((p) => p.userId === message.gm_from)) {
+          userPromises.push({
+            userId: message.gm_from,
+            promise: window.database.ref(`users/${message.gm_from}`).once("value"),
+          })
+        }
+      })
+
+      // Get all user data
+      const userResults = await Promise.all(userPromises.map((p) => p.promise))
+      const userMap = new Map()
+
+      userResults.forEach((snapshot, index) => {
+        const userData = snapshot.val()
+        if (userData) {
+          userMap.set(userPromises[index].userId, userData)
+        }
+      })
+
+      // Add user info to messages
+      const messagesWithUsers = messages.map((message) => ({
+        ...message,
+        user_name: userMap.get(message.gm_from)?.name || "Unknown",
+        user_avatar: userMap.get(message.gm_from)?.avatar || "/placeholder.svg?height=30&width=30",
+      }))
+
+      return messagesWithUsers.sort((a, b) => a.gm_created - b.gm_created)
+    } catch (error) {
+      console.error("Error getting group messages:", error)
       return []
+    }
+  }
+
+  async markGroupAsRead(groupId) {
+    try {
+      // Update last seen timestamp
+      await window.database
+        .ref(`group_last_seen/${groupId}/${window.currentUser.uid}`)
+        .set(firebase.database.ServerValue.TIMESTAMP)
+    } catch (error) {
+      console.error("Error marking group as read:", error)
     }
   }
 
@@ -246,42 +329,45 @@ class GroupsManager {
       })
   }
 
-  async sendGroupMessage(groupId, messageText, messageType = "text") {
-    try {
-      const message = {
-        group_id: groupId,
-        chat_from: window.currentUser.uid,
-        chat_msg: messageText,
-        chat_type: messageType,
-        chat_created: firebase.database.ServerValue.TIMESTAMP,
+  listenForGroupMessages(groupId) {
+    // Remove existing listener
+    if (this.groupMessageListeners.has(groupId)) {
+      this.groupMessageListeners.get(groupId).off()
+    }
+
+    // Set up new listener
+    const messagesRef = window.database.ref("group_messages").orderByChild("gm_group").equalTo(groupId)
+
+    messagesRef.on("child_added", async (snapshot) => {
+      const message = snapshot.val()
+
+      // Get user info
+      const userSnapshot = await window.database.ref(`users/${message.gm_from}`).once("value")
+      const userData = userSnapshot.val()
+
+      const messageWithUser = {
+        ...message,
+        gm_id: snapshot.key,
+        user_name: userData?.name || "Unknown",
+        user_avatar: userData?.avatar || "/placeholder.svg?height=30&width=30",
       }
 
-      const messageRef = window.database.ref("group_messages").push()
-      await messageRef.set(message)
+      // Update UI if group chat is open
+      if (window.currentChat && window.currentChat.groupId === groupId) {
+        window.UI.addGroupMessageToChat(messageWithUser)
+      }
 
-      return true
-    } catch (error) {
-      console.error("Error sending group message:", error)
-      return false
-    }
-  }
-
-  listenForGroupMessages(groupId, callback) {
-    const messagesRef = window.database.ref("group_messages").orderByChild("group_id").equalTo(groupId)
-
-    messagesRef.on("child_added", (snapshot) => {
-      callback(snapshot.val())
+      // Update group list
+      this.loadGroups()
     })
 
-    // Store listener for cleanup
-    this.groupListeners.set(groupId, messagesRef)
+    this.groupMessageListeners.set(groupId, messagesRef)
   }
 
   stopListeningForGroupMessages(groupId) {
-    const listener = this.groupListeners.get(groupId)
-    if (listener) {
-      listener.off()
-      this.groupListeners.delete(groupId)
+    if (this.groupMessageListeners.has(groupId)) {
+      this.groupMessageListeners.get(groupId).off()
+      this.groupMessageListeners.delete(groupId)
     }
   }
 }

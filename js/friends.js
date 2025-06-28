@@ -1,4 +1,5 @@
-// Friends management module
+// Friends management module - No imports, using global variables,don't eclare the firebase variable again
+
 class FriendsManager {
   constructor() {
     this.friendRequests = []
@@ -48,7 +49,7 @@ class FriendsManager {
         frnd_user: window.currentUser.uid,
         frnd_user2: targetUser.uid,
         frnd_status: "pending",
-        frnd_requested: window.firebase.database.ServerValue.TIMESTAMP,
+        frnd_requested: firebase.database.ServerValue.TIMESTAMP,
       }
 
       const requestRef = window.database.ref("friends").push()
@@ -76,7 +77,7 @@ class FriendsManager {
     try {
       await window.database.ref(`friends/${requestId}`).update({
         frnd_status: "accepted",
-        frnd_accepted: window.firebase.database.ServerValue.TIMESTAMP,
+        frnd_accepted: firebase.database.ServerValue.TIMESTAMP,
       })
 
       // Update IndexedDB
@@ -308,6 +309,17 @@ class FriendsManager {
 
   isFriend(userId) {
     return this.friends.some((friend) => friend.user_id === userId)
+  }
+
+  // Get friends list for chat selection
+  getFriendsForChat() {
+    return this.friends.map((friend) => ({
+      userId: friend.user_id,
+      name: friend.name,
+      avatar: friend.avatar,
+      isOnline: friend.isOnline,
+      status: friend.status,
+    }))
   }
 }
 

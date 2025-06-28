@@ -1,4 +1,5 @@
-// Main application initialization
+// Main application initialization - No imports, using global variables,don't eclare the firebase variable again
+
 class App {
   constructor() {
     this.isOnline = navigator.onLine
@@ -276,8 +277,6 @@ document.addEventListener("DOMContentLoaded", () => {
   })
 })
 
-
-
 // Global variables
 window.currentUser = null
 window.currentChat = null
@@ -285,6 +284,7 @@ window.currentCall = null
 window.APP_CONFIG = typeof window.APP_CONFIG !== 'undefined' ? window.APP_CONFIG : { vapidKey: "your-vapid-key-here" }
 window.database = typeof window.database !== 'undefined' ? window.database : { ref: () => {} } // Placeholder for Firebase database
 window.firebase = typeof window.firebase !== 'undefined' ? window.firebase : { database: { ServerValue: { TIMESTAMP: Date.now() } } } // Placeholder for Firebase
+
 
 // Export for use in other modules
 if (typeof module !== "undefined" && module.exports) {

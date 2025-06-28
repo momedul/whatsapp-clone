@@ -1,9 +1,10 @@
-// Messaging module
+// Messaging module - No imports, using global variables, don't declare the firebase variable again
+
 class MessagingManager {
   constructor() {
     this.messageListeners = new Map()
     this.typingTimeouts = new Map()
-    this.firebase = window.firebase // Declare the firebase variable
+    this.chatListUpdateTimeouts = new Map() // Initialize chatListUpdateTimeouts here
   }
 
   init() {
@@ -40,11 +41,31 @@ class MessagingManager {
         ((message.chat_from === window.currentUser.uid && message.chat_to === window.currentChat.userId) ||
           (message.chat_from === window.currentChat.userId && message.chat_to === window.currentUser.uid))
       ) {
-        window.UI.addMessageToChat(message)
+        // Only add to chat if it's not already there (prevent duplicates)
+        const existingMessage = window.$("#chat-messages").find(`[data-message-id="${message.chat_id}"]`)
+        if (existingMessage.length === 0) {
+          window.UI.addMessageToChat(message)
+        }
       }
 
-      // Update chat list
-      window.UI.updateChatList()
+      // Update chat list with animation (only for received messages and only once)
+      if (message.chat_from !== window.currentUser.uid) {
+        // Debounce chat list updates to prevent multiple updates for the same user
+        const otherUserId = message.chat_from
+
+        // Clear existing timeout for this user
+        if (this.chatListUpdateTimeouts.has(otherUserId)) {
+          clearTimeout(this.chatListUpdateTimeouts.get(otherUserId))
+        }
+
+        // Set new timeout to update chat list
+        const timeout = setTimeout(async () => {
+          await window.UI.updateChatListItem(message)
+          this.chatListUpdateTimeouts.delete(otherUserId)
+        }, 100) // Small delay to batch multiple messages
+
+        this.chatListUpdateTimeouts.set(otherUserId, timeout)
+      }
 
       // Mark as read if chat is open
       if (window.currentChat && message.chat_from === window.currentChat.userId) {
@@ -78,7 +99,7 @@ class MessagingManager {
         await messageRef.set({
           ...message,
           chat_id: messageRef.key,
-          chat_created: this.firebase.database.ServerValue.TIMESTAMP, // Use declared firebase variable
+          chat_created: firebase.database.ServerValue.TIMESTAMP,
         })
 
         // Save to IndexedDB
@@ -97,41 +118,19 @@ class MessagingManager {
           chat_id: tempId,
           pending: true,
         })
+
+        // Only update UI for offline messages since online messages will be handled by listener
+        window.UI.addMessageToChat({
+          ...message,
+          chat_id: tempId,
+        })
       }
 
-      // Update UI
-      window.UI.addMessageToChat(message)
-      window.UI.updateChatList()
-
+      // Don't update chat list here - it will be updated by the message listener
       return true
     } catch (error) {
       console.error("Error sending message:", error)
       window.utils.showToast("Failed to send message", "error")
-      return false
-    }
-  }
-
-  async sendGroupMessage(groupId, messageText, messageType = "text") {
-    try {
-      const message = {
-        group_id: groupId,
-        chat_from: window.currentUser.uid,
-        chat_msg: messageText,
-        chat_type: messageType,
-        chat_created: Date.now(),
-      }
-
-      // Send to Firebase
-      const messageRef = window.database.ref("group_messages").push()
-      await messageRef.set({
-        ...message,
-        chat_id: messageRef.key,
-        chat_created: this.firebase.database.ServerValue.TIMESTAMP, // Use declared firebase variable
-      })
-
-      return true
-    } catch (error) {
-      console.error("Error sending group message:", error)
       return false
     }
   }
@@ -204,20 +203,22 @@ class MessagingManager {
     }
   }
 
-  async uploadFile(file, targetUserId) {
+  async markMessageAsSeen(messageId) {
     try {
-      const fileRef = window.storage.ref(`messages/${window.currentUser.uid}/${Date.now()}_${file.name}`)
-      const snapshot = await fileRef.put(file)
-      const downloadURL = await snapshot.ref.getDownloadURL()
+      await window.database.ref(`chats/${messageId}`).update({
+        chat_seen: 2, // 0 = unread, 1 = delivered, 2 = seen
+        chat_seen_time: firebase.database.ServerValue.TIMESTAMP,
+      })
 
-      // Send message with file URL
-      const messageType = file.type.startsWith("image/") ? "image" : "file"
-      await this.sendMessage(targetUserId, downloadURL, messageType)
-
-      return downloadURL
+      // Update IndexedDB
+      const message = await window.dbManager.get("chats", messageId)
+      if (message) {
+        message.chat_seen = 2
+        message.chat_seen_time = Date.now()
+        await window.dbManager.put("chats", message)
+      }
     } catch (error) {
-      console.error("Error uploading file:", error)
-      throw error
+      console.error("Error marking message as seen:", error)
     }
   }
 

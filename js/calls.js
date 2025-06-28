@@ -1,6 +1,4 @@
-// Calls management module
-//import firebase from "firebase/app"
-//import "firebase/database"
+// Calls management module - No imports, using global variables,don't eclare the firebase variable again
 
 class CallsManager {
   constructor() {
@@ -89,49 +87,6 @@ class CallsManager {
     } catch (error) {
       console.error("Error saving call record:", error)
       return null
-    }
-  }
-
-  async updateCallDuration(targetUserId, duration) {
-    try {
-      // Find the most recent call record
-      const callsSnapshot = await window.database
-        .ref("call_history")
-        .orderByChild("call_created")
-        .limitToLast(10)
-        .once("value")
-
-      let callToUpdate = null
-      callsSnapshot.forEach((childSnapshot) => {
-        const call = childSnapshot.val()
-        if (
-          ((call.call_from === window.currentUser.uid && call.call_to === targetUserId) ||
-            (call.call_from === targetUserId && call.call_to === window.currentUser.uid)) &&
-          call.call_duration === 0
-        ) {
-          callToUpdate = {
-            id: childSnapshot.key,
-            ...call,
-          }
-        }
-      })
-
-      if (callToUpdate) {
-        await window.database.ref(`call_history/${callToUpdate.id}`).update({
-          call_duration: Math.floor(duration / 1000), // Convert to seconds
-          call_status: "completed",
-        })
-
-        // Update IndexedDB
-        const localCall = await window.dbManager.get("calls", callToUpdate.id)
-        if (localCall) {
-          localCall.call_duration = Math.floor(duration / 1000)
-          localCall.call_status = "completed"
-          await window.dbManager.put("calls", localCall)
-        }
-      }
-    } catch (error) {
-      console.error("Error updating call duration:", error)
     }
   }
 
@@ -226,24 +181,46 @@ class CallsManager {
     }
   }
 
-  getCallStatusIcon(call) {
-    if (call.call_direction === "outgoing") {
-      return call.call_status === "completed" ? "📞" : "📱"
-    } else {
-      return call.call_status === "completed" ? "📞" : "📵"
-    }
-  }
-
-  async deleteCallRecord(callId) {
+  async updateCallDuration(targetUserId, duration) {
     try {
-      await window.database.ref(`call_history/${callId}`).remove()
-      await window.dbManager.delete("calls", callId)
+      // Find the most recent call record
+      const callsSnapshot = await window.database
+        .ref("call_history")
+        .orderByChild("call_created")
+        .limitToLast(10)
+        .once("value")
 
-      window.utils.showToast("Call record deleted", "success")
-      this.loadCallHistory()
+      let callToUpdate = null
+      callsSnapshot.forEach((childSnapshot) => {
+        const call = childSnapshot.val()
+        if (
+          ((call.call_from === window.currentUser.uid && call.call_to === targetUserId) ||
+            (call.call_from === targetUserId && call.call_to === window.currentUser.uid)) &&
+          call.call_duration === 0
+        ) {
+          callToUpdate = {
+            id: childSnapshot.key,
+            ...call,
+          }
+        }
+      })
+
+      if (callToUpdate) {
+        await window.database.ref(`call_history/${callToUpdate.id}`).update({
+          call_duration: Math.floor(duration / 1000), // Convert to seconds
+          call_status: "completed",
+        })
+
+        // Update IndexedDB
+        const localCall = await window.dbManager.get("calls", callToUpdate.id)
+        if (localCall) {
+          localCall.call_duration = Math.floor(duration / 1000)
+          localCall.call_status = "completed"
+          await window.dbManager.put("calls", localCall)
+        }
+      }
     } catch (error) {
-      console.error("Error deleting call record:", error)
-      window.utils.showToast("Failed to delete call record", "error")
+      console.error("Error updating call duration:", error)
     }
   }
 }
